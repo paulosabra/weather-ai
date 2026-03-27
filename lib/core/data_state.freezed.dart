@@ -257,7 +257,7 @@ String toString() {
 
 
 class DataStateFailure<T> implements DataState<T> {
-  const DataStateFailure(this.error);
+  const DataStateFailure({required this.error});
   
 
  final  Object error;
@@ -311,7 +311,7 @@ class _$DataStateFailureCopyWithImpl<T,$Res>
 /// with the given fields replaced by the non-null parameter values.
 @pragma('vm:prefer-inline') $Res call({Object? error = null,}) {
   return _then(DataStateFailure<T>(
-null == error ? _self.error : error ,
+error: null == error ? _self.error : error ,
   ));
 }
 

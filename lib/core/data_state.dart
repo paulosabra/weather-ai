@@ -8,7 +8,7 @@ class DataState<T> with _$DataState<T> {
 
   const factory DataState.loading() = DataStateLoading<T>;
 
-  const factory DataState.failure(Object error) = DataStateFailure<T>;
+  const factory DataState.failure({required Object error}) = DataStateFailure<T>;
 
   const factory DataState.success({
     required T value,

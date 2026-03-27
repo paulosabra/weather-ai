@@ -27,5 +27,7 @@ abstract class IWeatherService {
   /// fails due to connectivity or server errors.
   ///
   /// Returns [Failure] with [WeatherError.unknown] for other failures.
-  Future<Result<WeatherModel, WeatherError>> getWeather(String cityQuery);
+  Future<Result<WeatherModel, WeatherError>> getWeather({
+    required String cityQuery,
+  });
 }
