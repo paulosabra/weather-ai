@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/constants/k_sizes.dart';
+import '../../../core/data_state.dart';
+import '../../domain/i_weather_service.dart';
+import '../../domain/weather_model.dart';
+import '../../application/weather_cubit.dart';
 
-/// Main weather summary card with temperature, condition, and details.
+/// Main weather summary card: reads [WeatherState] from [WeatherCubit].
 class WeatherMainCardWidget extends StatelessWidget {
   const WeatherMainCardWidget({super.key});
 
@@ -12,7 +17,116 @@ class WeatherMainCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return BlocBuilder<WeatherCubit, WeatherState>(
+      builder: (context, state) {
+        final weatherState = state.weather;
+
+        if (weatherState.isInitialOrLoading) {
+          return const _CardShell(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: KSizes.space12x),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        if (weatherState.hasFailure) {
+          final message = _messageForError(weatherState.error);
+          return _CardShell(
+            child: Padding(
+              padding: EdgeInsets.all(KSizes.margin4x),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.error_outline, size: KSizes.iconL, color: Colors.red.shade400),
+                  SizedBox(height: KSizes.margin3x),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: KSizes.fontSizeM,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: KSizes.margin4x),
+                  FilledButton(
+                    onPressed: () {
+                      context.read<WeatherCubit>().loadWeather(state.selectedCityQuery);
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final model = weatherState.value;
+        if (model == null) {
+          return const SizedBox.shrink();
+        }
+
+        return _WeatherMainCardContent(
+          model: model,
+          temperatureUnit: state.temperatureUnit,
+          primaryBlue: _primaryBlue,
+          sunYellow: _sunYellow,
+          conditionGrey: _conditionGrey,
+        );
+      },
+    );
+  }
+
+  static String _messageForError(Object? error) {
+    if (error is WeatherError) {
+      switch (error) {
+        case WeatherError.cityNotFound:
+          return 'No weather data for that location.';
+        case WeatherError.unavailable:
+          return 'Weather is unavailable. Please try again.';
+        case WeatherError.unknown:
+          return 'Something went wrong.';
+      }
+    }
+    return 'Something went wrong.';
+  }
+}
+
+class _CardShell extends StatelessWidget {
+  const _CardShell({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: KSizes.elevationCard,
+      borderRadius: BorderRadius.circular(KSizes.radiusLarge),
+      color: Colors.white,
+      child: child,
+    );
+  }
+}
+
+class _WeatherMainCardContent extends StatelessWidget {
+  const _WeatherMainCardContent({
+    required this.model,
+    required this.temperatureUnit,
+    required this.primaryBlue,
+    required this.sunYellow,
+    required this.conditionGrey,
+  });
+
+  final WeatherModel model;
+  final TemperatureUnit temperatureUnit;
+  final Color primaryBlue;
+  final Color sunYellow;
+  final Color conditionGrey;
+
+  @override
+  Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final conditionIcon = _iconForCondition(model.condition);
 
     return Material(
       elevation: KSizes.elevationCard,
@@ -23,10 +137,10 @@ class WeatherMainCardWidget extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.wb_sunny, size: KSizes.iconXL, color: _sunYellow),
+            Icon(conditionIcon, size: KSizes.iconXL, color: sunYellow),
             SizedBox(height: KSizes.margin4x),
             Text(
-              'New York',
+              model.cityName,
               style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 fontSize: KSizes.fontSizeXL,
@@ -35,7 +149,7 @@ class WeatherMainCardWidget extends StatelessWidget {
             ),
             SizedBox(height: KSizes.margin2x),
             Text(
-              '72°F',
+              _temperatureLabel(model.temperatureFahrenheit, temperatureUnit),
               style: textTheme.displaySmall?.copyWith(
                 fontSize: KSizes.fontSizeTemp,
                 fontWeight: FontWeight.bold,
@@ -44,10 +158,10 @@ class WeatherMainCardWidget extends StatelessWidget {
             ),
             SizedBox(height: KSizes.margin2x),
             Text(
-              'Sunny',
+              model.condition,
               style: TextStyle(
                 fontSize: KSizes.fontSizeM,
-                color: _conditionGrey,
+                color: conditionGrey,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -55,18 +169,25 @@ class WeatherMainCardWidget extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: () {},
+                onPressed: () {
+                  context.read<WeatherCubit>().toggleTemperatureUnit();
+                },
                 style: FilledButton.styleFrom(
-                  backgroundColor: _primaryBlue,
+                  backgroundColor: primaryBlue,
                   foregroundColor: Colors.white,
                   minimumSize: const Size.fromHeight(KSizes.buttonHeight),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(KSizes.radiusSmall),
                   ),
                 ),
-                child: const Text(
-                  'Switch to °C',
-                  style: TextStyle(fontSize: KSizes.fontSizeM, fontWeight: FontWeight.w600),
+                child: Text(
+                  temperatureUnit == TemperatureUnit.fahrenheit
+                      ? 'Switch to °C'
+                      : 'Switch to °F',
+                  style: const TextStyle(
+                    fontSize: KSizes.fontSizeM,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -78,13 +199,13 @@ class WeatherMainCardWidget extends StatelessWidget {
                 Expanded(
                   child: _DetailItem(
                     icon: Icons.thermostat,
-                    label: 'Humidity: 65%',
+                    label: 'Humidity: ${model.humidityPercent}%',
                   ),
                 ),
                 Expanded(
                   child: _DetailItem(
                     icon: Icons.air,
-                    label: 'Wind: 8 mph',
+                    label: 'Wind: ${_formatMph(model.windSpeedMph)} mph',
                     alignEnd: true,
                   ),
                 ),
@@ -94,6 +215,32 @@ class WeatherMainCardWidget extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _temperatureLabel(double fahrenheit, TemperatureUnit unit) {
+    if (unit == TemperatureUnit.fahrenheit) {
+      return '${fahrenheit.round()}°F';
+    }
+    final celsius = (fahrenheit - 32) * 5 / 9;
+    return '${celsius.round()}°C';
+  }
+
+  static IconData _iconForCondition(String condition) {
+    final c = condition.toLowerCase();
+    if (c.contains('rain')) {
+      return Icons.umbrella;
+    }
+    if (c.contains('cloud') || c.contains('fog')) {
+      return Icons.cloud;
+    }
+    return Icons.wb_sunny;
+  }
+
+  static String _formatMph(double mph) {
+    if (mph == mph.roundToDouble()) {
+      return mph.round().toString();
+    }
+    return mph.toStringAsFixed(1);
   }
 }
 
