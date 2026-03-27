@@ -5,45 +5,92 @@ import '../../domain/weather_model.dart';
 part 'weather_dto.freezed.dart';
 part 'weather_dto.g.dart';
 
-/// Wire format for a weather API response (snake_case JSON keys).
+/// OpenWeatherMap [current weather](https://openweathermap.org/current) JSON root.
 @freezed
-abstract class WeatherDto with _$WeatherDto {
-  const WeatherDto._();
+abstract class OpenWeatherCurrentDto with _$OpenWeatherCurrentDto {
+  const OpenWeatherCurrentDto._();
 
-  const factory WeatherDto({
-    /// City display name (`city_name` in JSON).
-    @Default('')
-    @JsonKey(name: 'city_name')
-    String cityName,
+  const factory OpenWeatherCurrentDto({
+    /// City name from the API.
+    required String name,
 
-    /// Air temperature in °F (`temperature_fahrenheit` in JSON).
-    @Default(0.0)
-    @JsonKey(name: 'temperature_fahrenheit')
-    double temperatureFahrenheit,
+    /// Temperature, humidity, etc.
+    required OpenWeatherMainDto main,
 
-    /// Short condition text (e.g. `"Sunny"`).
-    @Default('') String condition,
+    /// Condition summaries (first entry used for display).
+    required List<OpenWeatherWeatherDto> weather,
 
-    /// Relative humidity 0–100 (`humidity_percent` in JSON).
-    @Default(0)
-    @JsonKey(name: 'humidity_percent')
-    int humidityPercent,
+    /// Wind; may be absent in some edge responses.
+    OpenWeatherWindDto? wind,
+  }) = _OpenWeatherCurrentDto;
 
-    /// Wind speed in mph (`wind_speed_mph` in JSON).
-    @Default(0.0)
-    @JsonKey(name: 'wind_speed_mph')
-    double windSpeedMph,
-  }) = _WeatherDto;
+  factory OpenWeatherCurrentDto.fromJson(Map<String, dynamic> json) =>
+      _$OpenWeatherCurrentDtoFromJson(json);
 
-  factory WeatherDto.fromJson(Map<String, dynamic> json) =>
-      _$WeatherDtoFromJson(json);
+  /// Maps OpenWeather response fields to [WeatherModel] (imperial: °F, mph).
+  WeatherModel toDomain() {
+    final conditionText = weather.isNotEmpty
+        ? _titleCaseWords(weather.first.description)
+        : '';
+    return WeatherModel(
+      cityName: name,
+      temperatureFahrenheit: main.temp,
+      condition: conditionText,
+      humidityPercent: main.humidity,
+      windSpeedMph: wind?.speed ?? 0.0,
+    );
+  }
 
-  /// Maps this DTO to the domain [WeatherModel].
-  WeatherModel toDomain() => WeatherModel(
-        cityName: cityName,
-        temperatureFahrenheit: temperatureFahrenheit,
-        condition: condition,
-        humidityPercent: humidityPercent,
-        windSpeedMph: windSpeedMph,
-      );
+  static String _titleCaseWords(String raw) {
+    if (raw.isEmpty) {
+      return raw;
+    }
+    return raw
+        .split(' ')
+        .map(
+          (w) => w.isEmpty
+              ? w
+              : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
+}
+
+/// `main` object from OpenWeather current weather.
+@freezed
+abstract class OpenWeatherMainDto with _$OpenWeatherMainDto {
+  const factory OpenWeatherMainDto({
+    /// Air temperature (°F when `units=imperial`).
+    required double temp,
+
+    /// Relative humidity 0–100.
+    required int humidity,
+  }) = _OpenWeatherMainDto;
+
+  factory OpenWeatherMainDto.fromJson(Map<String, dynamic> json) =>
+      _$OpenWeatherMainDtoFromJson(json);
+}
+
+/// One element of the `weather` array.
+@freezed
+abstract class OpenWeatherWeatherDto with _$OpenWeatherWeatherDto {
+  const factory OpenWeatherWeatherDto({
+    required String main,
+    required String description,
+  }) = _OpenWeatherWeatherDto;
+
+  factory OpenWeatherWeatherDto.fromJson(Map<String, dynamic> json) =>
+      _$OpenWeatherWeatherDtoFromJson(json);
+}
+
+/// `wind` object from OpenWeather current weather.
+@freezed
+abstract class OpenWeatherWindDto with _$OpenWeatherWindDto {
+  const factory OpenWeatherWindDto({
+    /// Wind speed (mph when `units=imperial`).
+    @Default(0.0) double speed,
+  }) = _OpenWeatherWindDto;
+
+  factory OpenWeatherWindDto.fromJson(Map<String, dynamic> json) =>
+      _$OpenWeatherWindDtoFromJson(json);
 }
